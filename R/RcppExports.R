@@ -37,16 +37,16 @@ Influence_Huber <- function(X, tau) {
     .Call('_FarmTest_Influence_Huber', PACKAGE = 'FarmTest', X, tau)
 }
 
-mu_robust <- function(C_tau, X) {
-    .Call('_FarmTest_mu_robust', PACKAGE = 'FarmTest', C_tau, X)
+mu_robust <- function(X) {
+    .Call('_FarmTest_mu_robust', PACKAGE = 'FarmTest', X)
 }
 
-mu_robust_F <- function(C_tau, X, phi) {
-    .Call('_FarmTest_mu_robust_F', PACKAGE = 'FarmTest', C_tau, X, phi)
+mu_robust_F <- function(X, phi) {
+    .Call('_FarmTest_mu_robust_F', PACKAGE = 'FarmTest', X, phi)
 }
 
-Cov_Huber <- function(C_tau, X, mu_hat) {
-    .Call('_FarmTest_Cov_Huber', PACKAGE = 'FarmTest', C_tau, X, mu_hat)
+Cov_Huber <- function(X, mu_hat) {
+    .Call('_FarmTest_Cov_Huber', PACKAGE = 'FarmTest', X, mu_hat)
 }
 
 Eigen_Decomp <- function(M) {

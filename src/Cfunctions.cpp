@@ -359,10 +359,10 @@ arma::mat Influence_Huber (arma::mat X, float tau)
 //            Robust estimate of mu                                     //
 //////////////////////////////////////////////////////////////////////////
 
-//Input: Data matrix X,  constant term of the tuning parameter C_tau
+//Input: Data matrix X
 //Output: Estimated mean mu_hat
 // [[Rcpp::export]]
-arma::mat mu_robust(float C_tau, arma::mat X)
+arma::mat mu_robust(arma::mat X)
 {
   using namespace arma;
   int i, P, N;
@@ -396,15 +396,15 @@ arma::mat mu_robust(float C_tau, arma::mat X)
 //            Robust estimate of mu and factor coefficients              //
 //////////////////////////////////////////////////////////////////////////
 
-//Input: Data matrix X,  constant term of the tuning parameter C_tau
+//Input: Data matrix X
 //Output: Estimated mean mu_hat
 // [[Rcpp::export]]
-arma::mat mu_robust_F(float C_tau, arma::mat X, arma::mat phi)
+arma::mat mu_robust_F(arma::mat X, arma::mat phi)
 {
   using namespace arma;
-  int i, P, N, K;
+  int i, P, K;
   //Initial value of Huber descent
-  P=X.n_rows;    N=X.n_cols;
+  P=X.n_rows;
   K=phi.n_cols;
   //The order of Tau see Theorem 2.7
   float Tau;
@@ -426,10 +426,10 @@ arma::mat mu_robust_F(float C_tau, arma::mat X, arma::mat phi)
 ///////////////////////////////////////////////////////////////////////////
 //       Entry-wise Huber robust eatimaiton of covariance matrix        //
 //////////////////////////////////////////////////////////////////////////
-//Input: Data matrix X, estimated mean mu_hat, constant term of the tuning parameter C_tau
+//Input: Data matrix X, estimated mean mu_hat
 //Output: Estimated cov matrix Sigma_hat
 // [[Rcpp::export]]
-arma::mat Cov_Huber(float C_tau, arma::mat X, arma::mat mu_hat)
+arma::mat Cov_Huber(arma::mat X, arma::mat mu_hat)
 {
   using namespace arma;
   int i, j, P=X.n_rows;
