@@ -35,9 +35,10 @@ epsilon = matrix(rnorm( p*n, 0,1), nrow = n)
 B = matrix(rnorm(p*3,0,1), nrow=p)
 fx = matrix(rnorm(3*n, 0,1), nrow = n)
 X = fx\%*\%t(B)+ epsilon
-output = farm.scree(X)
+output = farm.scree(X, cv=FALSE)
 plot(output)
-plot(output, ratio.plot=FALSE, main="My Title")
+plot(output, scree.plot=FALSE, col="blue", main="Customized plot")
+
 }
 \seealso{
 \code{\link{farm.scree}} and \code{\link{print.farm.scree}}

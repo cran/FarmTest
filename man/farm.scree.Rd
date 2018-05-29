@@ -4,8 +4,8 @@
 \alias{farm.scree}
 \title{Diagnostic plots and quantities arising from estimating the number of underlying factors}
 \usage{
-farm.scree(X, K.scree = NULL, K.factors = NULL, robust = FALSE,
-  show.plot = FALSE)
+farm.scree(X, K.scree = NULL, K.factors = NULL, robust = TRUE,
+  cv = TRUE, tau = 2, show.plot = FALSE)
 }
 \arguments{
 \item{X}{an n x p data matrix with each row being a sample.}
@@ -14,7 +14,11 @@ farm.scree(X, K.scree = NULL, K.factors = NULL, robust = FALSE,
 
 \item{K.factors}{an \emph{optional} integer specifying the number of eigenvalues to be used for the eigenvalue ratio test. Default is min(n,p)/2.}
 
-\item{robust}{a TRUE/FALSE indicating whether to use a robust covariance estimator if TRUE, or the sample covariance estimator. Default is FALSE.}
+\item{robust}{a TRUE/FALSE indicating whether to use a robust covariance estimator if TRUE, or the sample covariance estimator. Default is TRUE.}
+
+\item{cv}{a boolean, specifying whether or  not to run cross-validation for the tuning parameter. Default is TRUE. Only used if \code{robust} is TRUE.}
+
+\item{tau}{\code{>0}, multiplier for the tuning parameter for Huber loss function. Default is 2. Only used if \code{robust} is TRUE and \code{cv} is FALSE. See details.}
 
 \item{show.plot}{a TRUE/FALSE indicating whether to show the resulting plots. Default is FALSE.}
 }
@@ -25,6 +29,8 @@ An object with S3 class \code{farm.scree} containing:
  \item{\code{proportions} }{Proportion of variance explained by the principal components}
  \item{\code{eigenvalue.ratios} }{Ratios calculated in the eigenvalue ratio test}
  \item{\code{nfactors} }{Number of factors found using the eigenvalue ratio test}
+ \item{\code{K.scree} }{Number of eigenvalues plotted in the scree plot}
+ \item{\code{K.factors} }{Number of eigenvalues used in the eigenvalue ratio test}
 }
 
 If \code{show.plots=TRUE} function returns two plots: First plot is the scree plot of the data. Second plot illustrates the eigenvalue ratio test.
@@ -37,6 +43,8 @@ The eignevalue ratio test is used to estimate the number of factors. See Ahn and
 The maximum eigenvalue ratio is marked differently on the plot.  The index of this maximum ratio gives the number of estimated factors.
 
 If \code{show.plots=TRUE}, plots are output and user has to hit <Return> to see the second plot. Alternatively, one may use the plot method for this class.
+
+The tuning parameter \code{= tau *  sigma * optimal rate } where \code{optimal rate } is the optimal rate for the tuning parameter. For details, see Fan et al.(2017). \code{sigma} is the standard deviation of the data.
 }
 \examples{
 set.seed(100)
@@ -46,11 +54,18 @@ epsilon = matrix(rnorm( p*n, 0,1), nrow = n)
 B = matrix(rnorm(p*3,0,1), nrow=p)
 fx = matrix(rnorm(3*n, 0,1), nrow = n)
 X = fx\%*\%t(B)+ epsilon
-ouput = farm.scree(X)
+output = farm.scree(X,show.plot = TRUE, cv=FALSE)
+output = farm.scree(X,show.plot = FALSE, cv=FALSE, K.scree=5, K.factors =10)
+output
+plot(output, scree.plot=FALSE, col="blue", main="Customized plot")
 
 }
 \references{
 Ahn, S. C. and Horenstein, A. R.  (2013). "Eigenvalue Ratio Test for the Number of Factors," Econometrica, 81 (3), 1203–1227.
+
+Fan, J., Ke, Y., Sun, Q. and Zhou, W-X. (2017). "FARM-Test: Factor-Adjusted Robust Multiple Testing with False Discovery Control", \url{https://arxiv.org/abs/1711.05386}.
+
+Zhou, W-X., Bose, K., Fan, J. and Liu, H. (2017). "A New Perspective on Robust M-Estimation: Finite Sample Theory and Applications to Dependence-Adjusted Multiple Testing," Annals of Statistics, to appear, \url{https://arxiv.org/abs/1711.05381}.
 }
 \seealso{
 \code{\link{plot.farm.scree}} and \code{\link{print.farm.scree}}

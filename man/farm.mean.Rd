@@ -4,10 +4,16 @@
 \alias{farm.mean}
 \title{Mean estimation with Huber's loss function}
 \usage{
-farm.mean(X)
+farm.mean(X, cv = TRUE, tau = 2, verbose = FALSE)
 }
 \arguments{
 \item{X}{a n x p data matrix with each row being a sample.}
+
+\item{cv}{a boolean, specifying whether or  not to run cross-validation for the tuning parameter. Default is TRUE.}
+
+\item{tau}{\code{>0}, multiplier for the tuning parameter for Huber loss function. Default is 2. Only used if \code{cv} is FALSE. See details.}
+
+\item{verbose}{a boolean specifying whether to print runtime updates to the console. Default is TRUE.}
 }
 \value{
 A list with the following items
@@ -15,6 +21,9 @@ A list with the following items
 }
 \description{
 This function estimates mean of multivariate data using the Huber's loss. The tuning parameter is chosen by cross validation.
+}
+\details{
+The tuning parameter \code{= tau *  sigma * optimal rate } where \code{optimal rate } is the optimal rate for the tuning parameter. For details, see Fan et al.(2017). \code{sigma} is the standard deviation of the data.
 }
 \examples{
 set.seed(100)
@@ -26,4 +35,8 @@ muhat = farm.mean(X)
 }
 \references{
 Huber, P.J. (1964). "Robust Estimation of a Location Parameter." The Annals of Mathematical Statistics, 35, 73–101.
+
+Fan, J., Ke, Y., Sun, Q. and Zhou, W-X. (2017). "FARM-Test: Factor-Adjusted Robust Multiple Testing with False Discovery Control", \url{https://arxiv.org/abs/1711.05386}.
+
+Zhou, W-X., Bose, K., Fan, J. and Liu, H. (2017). "A New Perspective on Robust M-Estimation: Finite Sample Theory and Applications to Dependence-Adjusted Multiple Testing," Annals of Statistics, to appear, \url{https://arxiv.org/abs/1711.05381}.
 }
