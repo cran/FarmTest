@@ -1,18 +1,3 @@
-/*This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-  
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
-
 # include <RcppArmadillo.h>
 # include <algorithm>
 # include <string>
@@ -23,8 +8,7 @@ double f1(const double x, const arma::vec& resSq, const int n) {
   return arma::accu(arma::min(resSq, x * arma::ones(n))) / (n * x) - std::log(n) / n;
 }
 
-double rootf1(const arma::vec& resSq, const int n, double low, double up, const double tol = 0.0001, 
-              const int maxIte = 500) {
+double rootf1(const arma::vec& resSq, const int n, double low, double up, const double tol = 0.0001, const int maxIte = 500) {
   int ite = 0;
   double mid, val;
   while (ite <= maxIte && up - low > tol) {
@@ -46,8 +30,8 @@ double f2(const double x, const arma::vec& resSq, const int n, const int d, cons
   return arma::accu(arma::min(resSq, x * arma::ones(N))) / (N * x) - (2 * std::log(d) + std::log(n)) / n;
 }
 
-double rootf2(const arma::vec& resSq, const int n, const int d, const int N, double low, double up, 
-              const double tol = 0.0001, const int maxIte = 500) {
+double rootf2(const arma::vec& resSq, const int n, const int d, const int N, double low, double up, const double tol = 0.0001, 
+              const int maxIte = 500) {
   int ite = 0;
   double mid, val;
   while (ite <= maxIte && up - low > tol) {
@@ -65,13 +49,6 @@ double rootf2(const arma::vec& resSq, const int n, const int d, const int N, dou
   return (low + up) / 2;
 }
 
-//' @title Huber mean estimation
-//' @description Internal function implemented in C++ for tuning-free Huber mean estimation. This function is incorporated into \code{farm.mean}.
-//' @param X An \eqn{n}-dimensional data vector.
-//' @param n The length of \code{X}.
-//' @param epsilon An \strong{optional} numerical value for tolerance level. The default value is 0.0001.
-//' @param iteMax An \strong{optional} integer for maximun number of iteration. The default value is 500.
-//' @seealso \code{\link{farm.mean}}
 // [[Rcpp::export]]
 double huberMean(const arma::vec& X, const int n, const double epsilon = 0.0001, const int iteMax = 500) {
   double muOld = 0;
@@ -93,8 +70,7 @@ double huberMean(const arma::vec& X, const int n, const double epsilon = 0.0001,
   return muNew;
 }
 
-arma::vec huberMeanVec(const arma::mat& X, const int n, const int p, const double epsilon = 0.0001, 
-                       const int iteMax = 500) {
+arma::vec huberMeanVec(const arma::mat& X, const int n, const int p, const double epsilon = 0.0001, const int iteMax = 500) {
   arma::vec rst(p);
   for (int i = 0; i < p; i++) {
     rst(i) = huberMean(X.col(i), n, epsilon, iteMax);
@@ -102,8 +78,7 @@ arma::vec huberMeanVec(const arma::mat& X, const int n, const int p, const doubl
   return rst;
 }
 
-double hMeanCov(const arma::vec& Z, const int n, const int d, const int N, const double epsilon = 0.0001, 
-                const int iteMax = 500) {
+double hMeanCov(const arma::vec& Z, const int n, const int d, const int N, const double epsilon = 0.0001, const int iteMax = 500) {
   double muOld = 0;
   double muNew = arma::mean(Z);
   double tauOld = 0;
@@ -123,12 +98,6 @@ double hMeanCov(const arma::vec& Z, const int n, const int d, const int N, const
   return muNew;
 }
 
-//' @title Huber-type covariance estimation
-//' @description Internal function implemented in C++ for tuning-free Huber-type covariance estimation. This function is incorporated into \code{farm.cov}.
-//' @param X An \eqn{n} by \eqn{p} data matrix.
-//' @param n Number of rows of \code{X}.
-//' @param p Number of columns of \code{X}.
-//' @seealso \code{\link{farm.cov}}
 // [[Rcpp::export]]
 Rcpp::List huberCov(const arma::mat& X, const int n, const int p) {
   arma::vec mu(p);
@@ -193,43 +162,44 @@ arma::mat standardize(arma::mat X) {
   return X;
 }
 
-arma::vec huberReg(const arma::mat& X, const arma::vec& Y, const int n, const int p, 
-                   const double tol = 0.00001, const double constTau = 1.345, const int iteMax = 500) {
+// [[Rcpp::export]]
+arma::vec huberReg(const arma::mat& X, const arma::vec& Y, const int n, const int p, const double tol = 0.0000001, 
+                   const double constTau = 1.345, const int iteMax = 5000) {
   arma::mat Z(n, p + 1);
   Z.cols(1, p) = standardize(X);
   Z.col(0) = arma::ones(n);
-  arma::vec betaOld = arma::zeros(p + 1);
+  arma::vec beta = arma::zeros(p + 1);
   double tau = constTau * mad(Y);
   arma::vec gradOld = Z.t() * huberDer(Y, n, tau) / n;
-  double lossOld = huberLoss(Y - Z * betaOld, n, tau);
-  arma::vec betaNew = betaOld - gradOld;
-  arma::vec res = Y - Z * betaNew;
+  double lossOld = huberLoss(Y, n, tau);
+  beta -= gradOld;
+  arma::vec betaDiff = -gradOld;
+  arma::vec res = Y - Z * beta;
+  tau = constTau * mad(res);
   double lossNew = huberLoss(res, n, tau);
-  arma::vec gradNew, gradDiff, betaDiff;
+  arma::vec gradNew = Z.t() * huberDer(res, n, tau) / n;
+  arma::vec gradDiff = gradNew - gradOld;
   int ite = 1;
-  while (std::abs(lossNew - lossOld) > tol && arma::norm(betaNew - betaOld, "inf") > tol && ite <= iteMax) {
-    tau = constTau * mad(res);
-    gradNew = Z.t() * huberDer(res, n, tau) / n;
-    gradDiff = gradNew - gradOld;
-    betaDiff = betaNew - betaOld;
-    double alpha = 1.0;
+  while (std::abs(lossNew - lossOld) > tol && arma::norm(betaDiff, "inf") > tol && ite <= iteMax) {
+    double alpha = 100.0;
     double cross = arma::as_scalar(betaDiff.t() * gradDiff);
     if (cross > 0) {
       double a1 = cross / arma::as_scalar(gradDiff.t() * gradDiff);
       double a2 = arma::as_scalar(betaDiff.t() * betaDiff) / cross;
-      alpha = std::min(std::min(a1, a2), 1.0);
+      alpha = std::min(std::min(a1, a2), 100.0);
     }
-    betaOld = betaNew;
     gradOld = gradNew;
     lossOld = lossNew;
-    betaNew -= alpha * gradNew;
-    res += alpha * Z * gradNew; 
+    beta -= alpha * gradNew;
+    betaDiff = -alpha * gradNew;
+    res += alpha * Z * gradNew;
+    tau = constTau * mad(res);
+    gradNew = Z.t() * huberDer(res, n, tau) / n;
     lossNew = huberLoss(res, n, tau);
+    gradDiff = gradNew - gradOld;
     ite++;
   }
-  betaNew.rows(1, p) /= arma::stddev(X, 0, 0).t();
-  betaNew(0) = huberMean(Y - X * betaNew.rows(1, p), n);
-  return betaNew;
+  return beta;
 }
 
 arma::vec getP(const arma::vec& T, const std::string alternative) {
@@ -244,8 +214,7 @@ arma::vec getP(const arma::vec& T, const std::string alternative) {
   return rst;
 }
 
-arma::vec getPboot(const arma::vec& mu, const arma::mat& boot, const arma::vec& h0, 
-                   const std::string alternative, const int p, const int B) {
+arma::vec getPboot(const arma::vec& mu, const arma::mat& boot, const arma::vec& h0, const std::string alternative, const int p, const int B) {
   arma::vec rst(p);
   if (alternative == "two.sided") {
     for (int i = 0; i < p; i++) {
@@ -263,12 +232,6 @@ arma::vec getPboot(const arma::vec& mu, const arma::mat& boot, const arma::vec& 
   return rst / B;
 }
 
-//' @title Multiple testing via an adaptive Benjamini-Hochberg procedure
-//' @description Internal function implemented in C++ for an adaptive Benjamini-Hochberg procedure. This function is incorporated into \code{farm.fdr}.
-//' @param Prob A sequence of p-values. Each entry of \code{Prob} must be between 0 and 1.
-//' @param alpha A numerical value for controlling the false discovery rate. The value of \code{alpha} must be strictly between 0 and 1.
-//' @param p The length of \code{Prob}.
-//' @seealso \code{\link{farm.fdr}}
 // [[Rcpp::export]]
 arma::uvec getRej(const arma::vec& Prob, const double alpha, const int p) {
   double piHat = (double)arma::accu(Prob > alpha) / ((1 - alpha) * p);
@@ -300,16 +263,8 @@ arma::vec getRatio(const arma::vec& eigenVal, const int n, const int p) {
   return ratio;
 }
 
-//' @title Robust multiple testing
-//' @description Internal function implemented in C++ for robust multiple testing without factor-adjustment. This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{n} by \eqn{p} data matrix with each row being a sample.
-//' @param h0 A \eqn{p}-vector of true means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List rmTest(const arma::mat& X, const arma::vec& h0, const double alpha = 0.05, 
-                  const std::string alternative = "two.sided") {
+Rcpp::List rmTest(const arma::mat& X, const arma::vec& h0, const double alpha = 0.05, const std::string alternative = "two.sided") {
   int n = X.n_rows, p = X.n_cols;
   arma::vec mu(p), sigma(p);
   for (int j = 0; j < p; j++) {
@@ -325,23 +280,13 @@ Rcpp::List rmTest(const arma::mat& X, const arma::vec& h0, const double alpha = 
   arma::vec T = (mu - h0) / sigma;
   arma::vec Prob = getP(T, alternative);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma,
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
+  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma, Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
                             Rcpp::Named("significant") = significant);
 }
 
-//' @title Robust multiple testing with multiplier bootstrap
-//' @description Internal function implemented in C++ for robust multiple testing without factor-adjustment, where p-values are obtained via multiplier bootstrap. 
-//' This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{n} by \eqn{p} data matrix with each row being a sample.
-//' @param h0 A \eqn{p}-vector of true means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @param B An \strong{optional} positive integer specifying the size of bootstrap sample. The dafault value is 500.
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List rmTestBoot(const arma::mat& X, const arma::vec& h0, const double alpha = 0.05, 
-                      const std::string alternative = "two.sided", const int B = 500) {
+Rcpp::List rmTestBoot(const arma::mat& X, const arma::vec& h0, const double alpha = 0.05, const std::string alternative = "two.sided", 
+                      const int B = 500) {
   int n = X.n_rows, p = X.n_cols;
   arma::vec mu = huberMeanVec(X, n, p);
   arma::mat boot(p, B);
@@ -353,21 +298,12 @@ Rcpp::List rmTestBoot(const arma::mat& X, const arma::vec& h0, const double alph
   }
   arma::vec Prob = getPboot(mu, boot, h0, alternative, p, B);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
 }
 
-//' @title Two sample robust multiple testing
-//' @description Internal function implemented in C++ for two sample robust multiple testing without factor-adjustment. This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{nX} by \eqn{p} data matrix with each row being a sample.
-//' @param Y An \eqn{nY} by \eqn{p} data matrix with each row being a sample. The number of columns of \code{X} and \code{Y} must be the same.
-//' @param h0 A \eqn{p}-vector of true difference in means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List rmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& h0, 
-                     const double alpha = 0.05, const std::string alternative = "two.sided") {
+Rcpp::List rmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& h0, const double alpha = 0.05, 
+                     const std::string alternative = "two.sided") {
   int nX = X.n_rows, nY = Y.n_rows, p = X.n_cols;
   arma::vec muX(p), sigmaX(p), muY(p), sigmaY(p);
   for (int j = 0; j < p; j++) {
@@ -391,26 +327,14 @@ Rcpp::List rmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& h0
   sigmaY = arma::sqrt(sigmaY / nY);
   arma::vec Prob = getP(T, alternative);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, 
-                            Rcpp::Named("stdDevX") = sigmaX, Rcpp::Named("stdDevY") = sigmaY,
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
+  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("stdDevX") = sigmaX, 
+                            Rcpp::Named("stdDevY") = sigmaY, Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
                             Rcpp::Named("significant") = significant);
 }
 
-//' @title Two sample robust multiple testing with multiplier bootstrap
-//' @description Internal function implemented in C++ for two sample robust multiple testing without factor-adjustment, where p-values are obtained via multiplier bootstrap. 
-//' This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{nX} by \eqn{p} data matrix with each row being a sample.
-//' @param Y An \eqn{nY} by \eqn{p} data matrix with each row being a sample. The number of columns of \code{X} and \code{Y} must be the same.
-//' @param h0 A \eqn{p}-vector of true difference in means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @param B An \strong{optional} positive integer specifying the size of bootstrap sample. The dafault value is 500.
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List rmTestTwoBoot(const arma::mat& X, const arma::mat& Y, const arma::vec& h0, 
-                         const double alpha = 0.05, const std::string alternative = "two.sided",
-                         const int B = 500) {
+Rcpp::List rmTestTwoBoot(const arma::mat& X, const arma::mat& Y, const arma::vec& h0, const double alpha = 0.05, 
+                         const std::string alternative = "two.sided", const int B = 500) {
   int nX = X.n_rows, nY = Y.n_rows, p = X.n_cols;
   arma::vec muX = huberMeanVec(X, nX, p);
   arma::vec muY = huberMeanVec(Y, nY, p);
@@ -427,18 +351,10 @@ Rcpp::List rmTestTwoBoot(const arma::mat& X, const arma::mat& Y, const arma::vec
   }
   arma::vec Prob = getPboot(muX - muY, bootX - bootY, h0, alternative, p, B);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, 
-                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("pValues") = Prob, 
+                            Rcpp::Named("significant") = significant);
 }
 
-//' @title FarmTest with unknown factors
-//' @description Internal function implemented in C++ for FarmTest with unknown factors. This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{n} by \eqn{p} data matrix with each row being a sample.
-//' @param h0 A \eqn{p}-vector of true means.
-//' @param K An \strong{optional} positive number of factors to be estimated for \code{X}. \code{K} cannot exceed the number of columns of \code{X}. If \code{K} is not specified or specified to be negative, it will be estimated internally.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
 Rcpp::List farmTest(const arma::mat& X, const arma::vec& h0, int K = -1, const double alpha = 0.05, 
                     const std::string alternative = "two.sided") {
@@ -472,26 +388,14 @@ Rcpp::List farmTest(const arma::mat& X, const arma::vec& h0, int K = -1, const d
   arma::vec T = (mu - h0) / sigma;
   arma::vec Prob = getP(T, alternative);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma,
-                            Rcpp::Named("loadings") = B, Rcpp::Named("nfactors") = K, 
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant, Rcpp::Named("eigens") = eigenVal,
-                            Rcpp::Named("ratio") = ratio);
+  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma, Rcpp::Named("loadings") = B, Rcpp::Named("nfactors") = K, 
+                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant, 
+                            Rcpp::Named("eigens") = eigenVal, Rcpp::Named("ratio") = ratio);
 }
 
-//' @title Two sample FarmTest with unknown factors
-//' @description Internal function implemented in C++ for two sample FarmTest with unknown factors. This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{nX} by \eqn{p} data matrix with each row being a sample.
-//' @param Y An \eqn{nY} by \eqn{p} data matrix with each row being a sample. The number of columns of \code{X} and \code{Y} must be the same.
-//' @param h0 A \eqn{p}-vector of true difference in means.
-//' @param KX An \strong{optional} positive number of factors to be estimated for \code{X}. \code{KX} cannot exceed the number of columns of \code{X}. If \code{KX} is not specified or specified to be negative, it will be estimated internally.
-//' @param KY An \strong{optional} positive number of factors to be estimated for \code{Y}. \code{KY} cannot exceed the number of columns of \code{Y}. If \code{KY} is not specified or specified to be negative, it will be estimated internally.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List farmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& h0, int KX = -1, 
-                       int KY = -1, const double alpha = 0.05, const std::string alternative = "two.sided") {
+Rcpp::List farmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& h0, int KX = -1, int KY = -1, const double alpha = 0.05, 
+                       const std::string alternative = "two.sided") {
   int nX = X.n_rows, nY = Y.n_rows, p = X.n_cols;
   Rcpp::List listCov = huberCov(X, nX, p);
   arma::vec muX = listCov["means"];
@@ -543,27 +447,16 @@ Rcpp::List farmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& 
   sigmaY = arma::sqrt(sigmaY / nY);
   arma::vec Prob = getP(T, alternative);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, 
-                            Rcpp::Named("stdDevX") = sigmaX, Rcpp::Named("stdDevY") = sigmaY,
-                            Rcpp::Named("loadingsX") = BX, Rcpp::Named("loadingsY") = BY,
-                            Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY,
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant, Rcpp::Named("eigensX") = eigenValX,
-                            Rcpp::Named("eigensY") = eigenValY, Rcpp::Named("ratioX") = ratioX,
-                            Rcpp::Named("ratioY") = ratioY);
+  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("stdDevX") = sigmaX, 
+                            Rcpp::Named("stdDevY") = sigmaY, Rcpp::Named("loadingsX") = BX, Rcpp::Named("loadingsY") = BY,
+                            Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY, Rcpp::Named("tStat") = T, 
+                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant, Rcpp::Named("eigensX") = eigenValX,
+                            Rcpp::Named("eigensY") = eigenValY, Rcpp::Named("ratioX") = ratioX, Rcpp::Named("ratioY") = ratioY);
 }
 
-//' @title FarmTest with known factors
-//' @description Internal function implemented in C++ for FarmTest with known factors. This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{n} by \eqn{p} data matrix with each row being a sample.
-//' @param fac A factor matrix with each column being a factor for \code{X}. The number of rows of \code{fac} and \code{X} must be the same.
-//' @param h0 A \eqn{p}-vector of true means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List farmTestFac(const arma::mat& X, const arma::mat& fac, const arma::vec& h0, 
-                       const double alpha = 0.05, const std::string alternative = "two.sided") {
+Rcpp::List farmTestFac(const arma::mat& X, const arma::mat& fac, const arma::vec& h0, const double alpha = 0.05, 
+                       const std::string alternative = "two.sided") {
   int n = X.n_rows, p = X.n_cols, K = fac.n_cols;
   arma::mat Sigma = arma::cov(fac);
   arma::vec mu(p), sigma(p);
@@ -589,26 +482,13 @@ Rcpp::List farmTestFac(const arma::mat& X, const arma::mat& fac, const arma::vec
   arma::vec T = (mu - h0) / sigma;
   arma::vec Prob = getP(T, alternative);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma,
-                            Rcpp::Named("loadings") = B, Rcpp::Named("nfactors") = K,
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma, Rcpp::Named("loadings") = B, Rcpp::Named("nfactors") = K,
+                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
 }
 
-//' @title FarmTest with known factors and multiplier bootstrap
-//' @description Internal function implemented in C++ for FarmTest with known factors, where p-values are obtained via multiplier bootstrap. 
-//' This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{n} by \eqn{p} data matrix with each row being a sample.
-//' @param fac A factor matrix with each column being a factor for \code{X}. The number of rows of \code{fac} and \code{X} must be the same.
-//' @param h0 A \eqn{p}-vector of true means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @param B An \strong{optional} positive integer specifying the size of bootstrap sample. The dafault value is 500.
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List farmTestFacBoot(const arma::mat& X, const arma::mat& fac, const arma::vec& h0, 
-                           const double alpha = 0.05, const std::string alternative = "two.sided",
-                           const int B = 500) {
+Rcpp::List farmTestFacBoot(const arma::mat& X, const arma::mat& fac, const arma::vec& h0, const double alpha = 0.05, 
+                           const std::string alternative = "two.sided", const int B = 500) {
   int n = X.n_rows, p = X.n_cols, K = fac.n_cols;
   arma::vec mu(p);
   for (int j = 0; j < p; j++) {
@@ -625,24 +505,13 @@ Rcpp::List farmTestFacBoot(const arma::mat& X, const arma::mat& fac, const arma:
   }
   arma::vec Prob = getPboot(mu, boot, h0, alternative, p, B);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("nfactors") = K,
-                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("nfactors") = K, Rcpp::Named("pValues") = Prob, 
+                            Rcpp::Named("significant") = significant);
 }
 
-//' @title Two sample FarmTest with known factors
-//' @description Internal function implemented in C++ for two sample FarmTest with known factors. This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{nX} by \eqn{p} data matrix with each row being a sample.
-//' @param facX A factor matrix with each column being a factor for \code{X}. The number of rows of \code{facX} and \code{X} must be the same.
-//' @param Y An \eqn{nY} by \eqn{p} data matrix with each row being a sample. The number of columns of \code{X} and \code{Y} must be the same.
-//' @param facY A factor matrix with each column being a factor for \code{Y}. The number of rows of \code{facY} and \code{Y} must be the same.
-//' @param h0 A \eqn{p}-vector of true difference in means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List farmTestTwoFac(const arma::mat& X, const arma::mat& facX, const arma::mat& Y, 
-                          const arma::mat& facY, const arma::vec& h0, const double alpha = 0.05, 
-                          const std::string alternative = "two.sided") {
+Rcpp::List farmTestTwoFac(const arma::mat& X, const arma::mat& facX, const arma::mat& Y, const arma::mat& facY, const arma::vec& h0, 
+                          const double alpha = 0.05, const std::string alternative = "two.sided") {
   int nX = X.n_rows, nY = Y.n_rows, p = X.n_cols, KX = facX.n_cols, KY = facY.n_cols;
   arma::mat SigmaX = arma::cov(facX);
   arma::mat SigmaY = arma::cov(facY);
@@ -684,30 +553,15 @@ Rcpp::List farmTestTwoFac(const arma::mat& X, const arma::mat& facX, const arma:
   sigmaY = arma::sqrt(sigmaY / nY);
   arma::vec Prob = getP(T, alternative);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, 
-                            Rcpp::Named("stdDevX") = sigmaX, Rcpp::Named("stdDevY") = sigmaY,
-                            Rcpp::Named("loadingsX") = BX, Rcpp::Named("loadingsY") = BY,
-                            Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY,
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("stdDevX") = sigmaX, 
+                            Rcpp::Named("stdDevY") = sigmaY, Rcpp::Named("loadingsX") = BX, Rcpp::Named("loadingsY") = BY,
+                            Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY, Rcpp::Named("tStat") = T, 
+                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
 }
 
-//' @title Two sample FarmTest with known factors and multiplier bootstrap
-//' @description Internal function implemented in C++ for two sample FarmTest with known factors, where p-values are obtained via multiplier bootstrap. 
-//' This case is incorporated into \code{farm.test}.
-//' @param X An \eqn{nX} by \eqn{p} data matrix with each row being a sample.
-//' @param facX A factor matrix with each column being a factor for \code{X}. The number of rows of \code{facX} and \code{X} must be the same.
-//' @param Y An \eqn{nY} by \eqn{p} data matrix with each row being a sample. The number of columns of \code{X} and \code{Y} must be the same.
-//' @param facY A factor matrix with each column being a factor for \code{Y}. The number of rows of \code{facY} and \code{Y} must be the same.
-//' @param h0 A \eqn{p}-vector of true difference in means.
-//' @param alpha An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.
-//' @param alternative An \strong{optional} character string specifying the alternate hypothesis, must be one of "two.sided" (default), "less" or "greater".
-//' @param B An \strong{optional} positive integer specifying the size of bootstrap sample. The dafault value is 500.
-//' @seealso \code{\link{farm.test}}
 // [[Rcpp::export]]
-Rcpp::List farmTestTwoFacBoot(const arma::mat& X, const arma::mat& facX, const arma::mat& Y, 
-                              const arma::mat& facY, const arma::vec& h0, const double alpha = 0.05, 
-                              const std::string alternative = "two.sided", const int B = 500) {
+Rcpp::List farmTestTwoFacBoot(const arma::mat& X, const arma::mat& facX, const arma::mat& Y, const arma::mat& facY, 
+                              const arma::vec& h0, const double alpha = 0.05, const std::string alternative = "two.sided", const int B = 500) {
   int nX = X.n_rows, nY = Y.n_rows, p = X.n_cols, KX = facX.n_cols, KY = facY.n_cols;
   arma::vec muX(p), muY(p);
   for (int j = 0; j < p; j++) {
@@ -731,7 +585,6 @@ Rcpp::List farmTestTwoFacBoot(const arma::mat& X, const arma::mat& facX, const a
   }
   arma::vec Prob = getPboot(muX - muY, bootX - bootY, h0, alternative, p, B);
   arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, 
-                            Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY,
-                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+  return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("nfactorsX") = KX, 
+                            Rcpp::Named("nfactorsY") = KY, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
 }
