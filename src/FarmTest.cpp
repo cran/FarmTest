@@ -4,73 +4,102 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::plugins(cpp11)]]
 
-double f1(const double x, const arma::vec& resSq, const int n) {
-  return arma::accu(arma::min(resSq, x * arma::ones(n))) / (n * x) - std::log(n) / n;
+// [[Rcpp::export]]
+int sgn(const double x) {
+  return (x > 0) - (x < 0);
 }
 
-double rootf1(const arma::vec& resSq, const int n, double low, double up, const double tol = 0.0001, const int maxIte = 500) {
-  int ite = 0;
-  double mid, val;
+// [[Rcpp::export]]
+double f1(const double x, const arma::vec& resSq, const int n, const double rhs) {
+  return arma::mean(arma::min(resSq / x, arma::ones(n))) - rhs;
+}
+
+// [[Rcpp::export]]
+double rootf1(const arma::vec& resSq, const int n, const double rhs, double low, double up, const double tol = 0.001, const int maxIte = 500) {
+  int ite = 1;
   while (ite <= maxIte && up - low > tol) {
-    mid = (up + low) / 2;
-    val = f1(mid, resSq, n);
-    if (val == 0) {
-      return mid;
-    } else if (val < 0) {
+    double mid = 0.5 * (up + low);
+    double val = f1(mid, resSq, n, rhs);
+    if (val < 0) {
       up = mid;
     } else {
       low = mid;
     }
     ite++;
   }
-  return (low + up) / 2;
+  return 0.5 * (low + up);
 }
 
-double f2(const double x, const arma::vec& resSq, const int n, const int d, const int N) {
-  return arma::accu(arma::min(resSq, x * arma::ones(N))) / (N * x) - (2 * std::log(d) + std::log(n)) / n;
+// [[Rcpp::export]]
+double f2(const double x, const arma::vec& resSq, const int n, const int d, const int N, const double rhs) {
+  return arma::mean(arma::min(resSq / x, arma::ones(N))) - rhs;
 }
 
-double rootf2(const arma::vec& resSq, const int n, const int d, const int N, double low, double up, const double tol = 0.0001, 
+// [[Rcpp::export]]
+double rootf2(const arma::vec& resSq, const int n, const int d, const int N, const double rhs, double low, double up, const double tol = 0.001, 
               const int maxIte = 500) {
   int ite = 0;
   double mid, val;
   while (ite <= maxIte && up - low > tol) {
-    mid = (up + low) / 2;
-    val = f2(mid, resSq, n, d, N);
-    if (val == 0) {
-      return mid;
-    } else if (val < 0) {
+    mid = 0.5 * (up + low);
+    val = f2(mid, resSq, n, d, N, rhs);
+    if (val < 0) {
       up = mid;
     } else {
       low = mid;
     }
     ite++;
   }
-  return (low + up) / 2;
+  return 0.5 * (low + up);
 }
 
 // [[Rcpp::export]]
-double huberMean(const arma::vec& X, const int n, const double epsilon = 0.0001, const int iteMax = 500) {
-  double muOld = 0;
-  double muNew = arma::mean(X);
-  double tauOld = 0;
-  double tauNew = arma::stddev(X) * std::sqrt((long double)n / std::log(n));
-  int iteNum = 0;
-  arma::vec res(n), resSq(n), w(n);
-  while (((std::abs(muNew - muOld) > epsilon) || (std::abs(tauNew - tauOld) > epsilon)) && iteNum < iteMax) {
-    muOld = muNew;
-    tauOld = tauNew;
-    res = X - muOld;
-    resSq = arma::square(res);
-    tauNew = std::sqrt((long double)rootf1(resSq, n, arma::min(resSq), arma::accu(resSq)));
-    w = arma::min(tauNew / arma::abs(res), arma::ones(n));
-    muNew = arma::as_scalar(X.t() * w) / arma::accu(w);
-    iteNum++;
+double huberDer(const arma::vec& res, const double tau, const int n) {
+  double rst = 0.0;
+  for (int i = 0; i < n; i++) {
+    double cur = res(i);
+    rst -= std::abs(cur) <= tau ? cur : tau * sgn(cur);
   }
-  return muNew;
+  return rst / n;
 }
 
-arma::vec huberMeanVec(const arma::mat& X, const int n, const int p, const double epsilon = 0.0001, const int iteMax = 500) {
+// [[Rcpp::export]]
+double huberMean(arma::vec X, const int n, const double tol = 0.001, const int iteMax = 500) {
+  double rhs = std::log(n) / n;
+  double mx = arma::mean(X);
+  X -= mx;
+  double tau = arma::stddev(X) * std::sqrt((long double)n / std::log(n));
+  double derOld = huberDer(X, tau, n);
+  double mu = -derOld, muDiff = -derOld;
+  arma::vec res = X - mu;
+  arma::vec resSq = arma::square(res);
+  tau = std::sqrt((long double)rootf1(resSq, n, rhs, arma::min(resSq), arma::accu(resSq)));
+  double derNew = huberDer(res, tau, n);
+  double derDiff = derNew - derOld;
+  int ite = 1;
+  while (std::abs(derNew) > tol && ite <= iteMax) {
+    double alpha = 1.0;
+    double cross = muDiff * derDiff;
+    if (cross > 0) {
+      double a1 = cross / derDiff * derDiff;
+      double a2 = muDiff * muDiff / cross;
+      alpha = std::min(std::min(a1, a2), 100.0);
+    }
+    derOld = derNew;
+    muDiff = -alpha * derNew;
+    mu += muDiff;
+    res = X - mu;
+    resSq = arma::square(res);
+    tau = std::sqrt((long double)rootf1(resSq, n, rhs, arma::min(resSq), arma::accu(resSq)));
+    derNew = huberDer(res, tau, n);
+    derDiff = derNew - derOld;
+    ite++;
+  }
+  return mu + mx;
+}
+
+// [[Rcpp::export]]
+arma::vec huberMeanVec(const arma::mat& X, const int n, const int p, const double epsilon = 0.001, const int iteMax = 500) {
   arma::vec rst(p);
   for (int i = 0; i < p; i++) {
     rst(i) = huberMean(X.col(i), n, epsilon, iteMax);
@@ -78,20 +107,19 @@ arma::vec huberMeanVec(const arma::mat& X, const int n, const int p, const doubl
   return rst;
 }
 
-double hMeanCov(const arma::vec& Z, const int n, const int d, const int N, const double epsilon = 0.0001, const int iteMax = 500) {
+// [[Rcpp::export]]
+double hMeanCov(const arma::vec& Z, const int n, const int d, const int N, double rhs, const double epsilon = 0.0001, const int iteMax = 500) {
   double muOld = 0;
   double muNew = arma::mean(Z);
-  double tauOld = 0;
-  double tauNew = arma::stddev(Z) * std::sqrt((long double)n / (2 * std::log(d) + std::log(n)));
+  double tau = arma::stddev(Z) * std::sqrt((long double)n / (2 * std::log(d) + std::log(n)));
   int iteNum = 0;
   arma::vec res(n), resSq(n), w(n);
-  while (((std::abs(muNew - muOld) > epsilon) || (std::abs(tauNew - tauOld) > epsilon)) && iteNum < iteMax) {
+  while ((std::abs(muNew - muOld) > epsilon) && iteNum < iteMax) {
     muOld = muNew;
-    tauOld = tauNew;
     res = Z - muOld;
     resSq = arma::square(res);
-    tauNew = std::sqrt((long double)rootf2(resSq, n, d, N, arma::min(resSq), arma::accu(resSq)));
-    w = arma::min(tauNew / arma::abs(res), arma::ones(N));
+    tau = std::sqrt((long double)rootf2(resSq, n, d, N, rhs, arma::min(resSq), arma::accu(resSq)));
+    w = arma::min(tau / arma::abs(res), arma::ones(N));
     muNew = arma::as_scalar(Z.t() * w) / arma::accu(w);
     iteNum++;
   }
@@ -100,6 +128,7 @@ double hMeanCov(const arma::vec& Z, const int n, const int d, const int N, const
 
 // [[Rcpp::export]]
 Rcpp::List huberCov(const arma::mat& X, const int n, const int p) {
+  double rhs2 = (2 * std::log(p) + std::log(n)) / n;
   arma::vec mu(p);
   arma::mat sigmaHat(p, p);
   for (int j = 0; j < p; j++) {
@@ -120,68 +149,59 @@ Rcpp::List huberCov(const arma::mat& X, const int n, const int p) {
   }
   for (int i = 0; i < p - 1; i++) {
     for (int j = i + 1; j < p; j++) {
-      sigmaHat(i, j) = sigmaHat(j, i) = hMeanCov(Y.col(i) % Y.col(j) / 2, n, p, N);
+      sigmaHat(i, j) = sigmaHat(j, i) = hMeanCov(0.5 * Y.col(i) % Y.col(j), n, p, N, rhs2);
     }
   }
   return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("cov") = sigmaHat);
 }
 
+// [[Rcpp::export]]
 double mad(const arma::vec& x) {
-  return arma::median(arma::abs(x - arma::median(x))) / 0.6744898;
+  return 1.482602 * arma::median(arma::abs(x - arma::median(x)));
 }
 
-int sgn(const double x) {
-  return (x > 0) - (x < 0);
-}
-
-arma::vec huberDer(const arma::vec& x, const int n, const double tau) {
-  arma::vec w(n);
-  for (int i = 0; i < n; i++) {
-    if (std::abs(x(i)) <= tau) {
-      w(i) = -x(i);
-    } else {
-      w(i) = -tau * sgn(x(i));
-    }
-  }
-  return w;
-}
-
-double huberLoss(const arma::vec& x, const int n, const double tau) {
-  double loss = 0;
-  for (int i = 0; i < n; i++) {
-    double cur = x(i);
-    loss += std::abs(cur) <= tau ? (cur * cur / 2) : (tau * std::abs(cur) - tau * tau / 2);
-  }
-  return loss / n;
-}
-
-arma::mat standardize(arma::mat X) {
-  for (int i = 0; i < X.n_cols; i++) {
-    X.col(i) = (X.col(i) - arma::mean(X.col(i))) / arma::stddev(X.col(i));
+// [[Rcpp::export]]
+arma::mat standardize(arma::mat X, const arma::rowvec& mx, const arma::vec& sx, const int p) {
+  for (int i = 0; i < p; i++) {
+    X.col(i) = (X.col(i) - mx(i)) / sx(i);
   }
   return X;
 }
 
 // [[Rcpp::export]]
-arma::vec huberReg(const arma::mat& X, const arma::vec& Y, const int n, const int p, const double tol = 0.0000001, 
-                   const double constTau = 1.345, const int iteMax = 5000) {
-  arma::mat Z(n, p + 1);
-  Z.cols(1, p) = standardize(X);
-  Z.col(0) = arma::ones(n);
-  arma::vec beta = arma::zeros(p + 1);
+void updateHuber(const arma::mat& Z, const arma::vec& res, arma::vec& der, arma::vec& grad, const int n, const double tau, const double n1) {
+  for (int i = 0; i < n; i++) {
+    double cur = res(i);
+    if (std::abs(cur) <= tau) {
+      der(i) = -cur;
+    } else {
+      der(i) = -tau * sgn(cur);
+    }
+  }
+  grad = n1 * Z.t() * der;
+}
+
+// [[Rcpp::export]]
+arma::vec huberReg(const arma::mat& X, arma::vec Y, const int n, const int p, const double tol = 0.0001, const double constTau = 1.345, 
+                   const int iteMax = 5000) {
+  const double n1 = 1.0 / n;
+  arma::rowvec mx = arma::mean(X, 0);
+  arma::vec sx = arma::stddev(X, 0, 0).t();
+  double my = arma::mean(Y);
+  arma::mat Z = arma::join_rows(arma::ones(n), standardize(X, mx, sx, p));
+  Y -= my;
   double tau = constTau * mad(Y);
-  arma::vec gradOld = Z.t() * huberDer(Y, n, tau) / n;
-  double lossOld = huberLoss(Y, n, tau);
-  beta -= gradOld;
-  arma::vec betaDiff = -gradOld;
+  arma::vec der(n);
+  arma::vec gradOld(p + 1), gradNew(p + 1);
+  updateHuber(Z, Y, der, gradOld, n, tau, n1);
+  arma::vec beta = -gradOld, betaDiff = -gradOld;
   arma::vec res = Y - Z * beta;
   tau = constTau * mad(res);
-  double lossNew = huberLoss(res, n, tau);
-  arma::vec gradNew = Z.t() * huberDer(res, n, tau) / n;
+  updateHuber(Z, res, der, gradNew, n, tau, n1);
   arma::vec gradDiff = gradNew - gradOld;
   int ite = 1;
-  while (std::abs(lossNew - lossOld) > tol && arma::norm(betaDiff, "inf") > tol && ite <= iteMax) {
-    double alpha = 100.0;
+  while (arma::norm(gradNew, "inf") > tol && ite <= iteMax) {
+    double alpha = 1.0;
     double cross = arma::as_scalar(betaDiff.t() * gradDiff);
     if (cross > 0) {
       double a1 = cross / arma::as_scalar(gradDiff.t() * gradDiff);
@@ -189,19 +209,99 @@ arma::vec huberReg(const arma::mat& X, const arma::vec& Y, const int n, const in
       alpha = std::min(std::min(a1, a2), 100.0);
     }
     gradOld = gradNew;
-    lossOld = lossNew;
-    beta -= alpha * gradNew;
     betaDiff = -alpha * gradNew;
-    res += alpha * Z * gradNew;
+    beta += betaDiff;
+    res -= Z * betaDiff;
     tau = constTau * mad(res);
-    gradNew = Z.t() * huberDer(res, n, tau) / n;
-    lossNew = huberLoss(res, n, tau);
+    updateHuber(Z, res, der, gradNew, n, tau, n1);
     gradDiff = gradNew - gradOld;
     ite++;
   }
+  beta.rows(1, p) /= sx;
+  beta(0) += my - arma::as_scalar(mx * beta.rows(1, p));
   return beta;
 }
 
+// [[Rcpp::export]]
+arma::vec huberRegCoef(const arma::mat& X, arma::vec Y, const int n, const int p, const double tol = 0.0001, const double constTau = 1.345, 
+                       const int iteMax = 5000) {
+  const double n1 = 1.0 / n;
+  arma::rowvec mx = arma::mean(X, 0);
+  arma::vec sx = arma::stddev(X, 0, 0).t();
+  double my = arma::mean(Y);
+  arma::mat Z = arma::join_rows(arma::ones(n), standardize(X, mx, sx, p));
+  Y -= my;
+  double tau = constTau * mad(Y);
+  arma::vec der(n);
+  arma::vec gradOld(p + 1), gradNew(p + 1);
+  updateHuber(Z, Y, der, gradOld, n, tau, n1);
+  arma::vec beta = -gradOld, betaDiff = -gradOld;
+  arma::vec res = Y - Z * beta;
+  tau = constTau * mad(res);
+  updateHuber(Z, res, der, gradNew, n, tau, n1);
+  arma::vec gradDiff = gradNew - gradOld;
+  int ite = 1;
+  while (arma::norm(gradNew, "inf") > tol && ite <= iteMax) {
+    double alpha = 1.0;
+    double cross = arma::as_scalar(betaDiff.t() * gradDiff);
+    if (cross > 0) {
+      double a1 = cross / arma::as_scalar(gradDiff.t() * gradDiff);
+      double a2 = arma::as_scalar(betaDiff.t() * betaDiff) / cross;
+      alpha = std::min(std::min(a1, a2), 100.0);
+    }
+    gradOld = gradNew;
+    betaDiff = -alpha * gradNew;
+    beta += betaDiff;
+    res -= Z * betaDiff;
+    tau = constTau * mad(res);
+    updateHuber(Z, res, der, gradNew, n, tau, n1);
+    gradDiff = gradNew - gradOld;
+    ite++;
+  }
+  return beta.rows(1, p) / sx;
+}
+
+// [[Rcpp::export]]
+double huberRegItcp(const arma::mat& X, arma::vec Y, const int n, const int p, const double tol = 0.0001, const double constTau = 1.345, 
+                       const int iteMax = 5000) {
+  const double n1 = 1.0 / n;
+  arma::rowvec mx = arma::mean(X, 0);
+  arma::vec sx = arma::stddev(X, 0, 0).t();
+  double my = arma::mean(Y);
+  arma::mat Z = arma::join_rows(arma::ones(n), standardize(X, mx, sx, p));
+  Y -= my;
+  double tau = constTau * mad(Y);
+  arma::vec der(n);
+  arma::vec gradOld(p + 1), gradNew(p + 1);
+  updateHuber(Z, Y, der, gradOld, n, tau, n1);
+  arma::vec beta = -gradOld, betaDiff = -gradOld;
+  arma::vec res = Y - Z * beta;
+  tau = constTau * mad(res);
+  updateHuber(Z, res, der, gradNew, n, tau, n1);
+  arma::vec gradDiff = gradNew - gradOld;
+  int ite = 1;
+  while (arma::norm(gradNew, "inf") > tol && ite <= iteMax) {
+    double alpha = 1.0;
+    double cross = arma::as_scalar(betaDiff.t() * gradDiff);
+    if (cross > 0) {
+      double a1 = cross / arma::as_scalar(gradDiff.t() * gradDiff);
+      double a2 = arma::as_scalar(betaDiff.t() * betaDiff) / cross;
+      alpha = std::min(std::min(a1, a2), 100.0);
+    }
+    gradOld = gradNew;
+    betaDiff = -alpha * gradNew;
+    beta += betaDiff;
+    res -= Z * betaDiff;
+    tau = constTau * mad(res);
+    updateHuber(Z, res, der, gradNew, n, tau, n1);
+    gradDiff = gradNew - gradOld;
+    ite++;
+  }
+  beta.rows(1, p) /= sx;
+  return beta(0) + my - arma::as_scalar(mx * beta.rows(1, p));
+}
+
+// [[Rcpp::export]]
 arma::vec getP(const arma::vec& T, const std::string alternative) {
   arma::vec rst;
   if (alternative == "two.sided") {
@@ -214,6 +314,7 @@ arma::vec getP(const arma::vec& T, const std::string alternative) {
   return rst;
 }
 
+// [[Rcpp::export]]
 arma::vec getPboot(const arma::vec& mu, const arma::mat& boot, const arma::vec& h0, const std::string alternative, const int p, const int B) {
   arma::vec rst(p);
   if (alternative == "two.sided") {
@@ -233,19 +334,13 @@ arma::vec getPboot(const arma::vec& mu, const arma::mat& boot, const arma::vec& 
 }
 
 // [[Rcpp::export]]
-arma::uvec getRej(const arma::vec& Prob, const double alpha, const int p) {
-  double piHat = (double)arma::accu(Prob > alpha) / ((1 - alpha) * p);
-  arma::vec z = arma::sort(Prob);
-  double pAlpha = -1.0;
-  for (int i = p - 1; i >= 0; i--) {
-    if (z(i) * piHat * p <= alpha * (i + 1)) {
-      pAlpha = z(i);
-      break;
-    }
-  }
-  return Prob <= pAlpha;
+arma::vec adjust(const arma::vec& Prob, const double alpha, const int p) {
+  double piHat = std::min((double)arma::accu(Prob > alpha) / (p * (1 - alpha)), 1.0);
+  arma::uvec rk = arma::sort_index(arma::sort_index(Prob)) + 1;
+  return arma::min(Prob * piHat * p / rk, arma::ones(p));
 }
 
+// [[Rcpp::export]]
 arma::vec getRatio(const arma::vec& eigenVal, const int n, const int p) {
   int temp = std::min(n, p);
   int len = temp < 4 ? temp - 1 : temp >> 1;
@@ -279,9 +374,10 @@ Rcpp::List rmTest(const arma::mat& X, const arma::vec& h0, const double alpha = 
   sigma = arma::sqrt(sigma / n);
   arma::vec T = (mu - h0) / sigma;
   arma::vec Prob = getP(T, alternative);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma, Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+                            Rcpp::Named("pAdjust") = pAdjust, Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
@@ -291,14 +387,16 @@ Rcpp::List rmTestBoot(const arma::mat& X, const arma::vec& h0, const double alph
   arma::vec mu = huberMeanVec(X, n, p);
   arma::mat boot(p, B);
   for (int i = 0; i < B; i++) {
-    arma::uvec idx = arma::find(arma::randu(n) > 0.5);
+    arma::uvec idx = arma::find(arma::randi(n, arma::distr_param(0, 1)) == 1);
     int subn = idx.size();
     arma::mat subX = X.rows(idx);
     boot.col(i) = huberMeanVec(subX, subn, p);
   }
   arma::vec Prob = getPboot(mu, boot, h0, alternative, p, B);
-  arma::uvec significant = getRej(Prob, alpha, p);
-  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
+  return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("pValues") = Prob, Rcpp::Named("pAdjust") = pAdjust, 
+                            Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
@@ -326,10 +424,11 @@ Rcpp::List rmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& h0
   sigmaX = arma::sqrt(sigmaX / nX);
   sigmaY = arma::sqrt(sigmaY / nY);
   arma::vec Prob = getP(T, alternative);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("stdDevX") = sigmaX, 
                             Rcpp::Named("stdDevY") = sigmaY, Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+                            Rcpp::Named("pAdjust") = pAdjust, Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
@@ -340,24 +439,24 @@ Rcpp::List rmTestTwoBoot(const arma::mat& X, const arma::mat& Y, const arma::vec
   arma::vec muY = huberMeanVec(Y, nY, p);
   arma::mat bootX(p, B), bootY(p, B);
   for (int i = 0; i < B; i++) {
-    arma::uvec idx = arma::find(arma::randu(nX) > 0.5);
+    arma::uvec idx = arma::find(arma::randi(nX, arma::distr_param(0, 1)) == 1);
     int subn = idx.size();
     arma::mat subX = X.rows(idx);
     bootX.col(i) = huberMeanVec(subX, subn, p);
-    idx = arma::find(arma::randu(nY) > 0.5);
+    idx = arma::find(arma::randi(nY, arma::distr_param(0, 1)) == 1);
     subn = idx.size();
     arma::mat subY = Y.rows(idx);
     bootY.col(i) = huberMeanVec(subY, subn, p);
   }
   arma::vec Prob = getPboot(muX - muY, bootX - bootY, h0, alternative, p, B);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+                            Rcpp::Named("pAdjust") = pAdjust, Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
-Rcpp::List farmTest(const arma::mat& X, const arma::vec& h0, int K = -1, const double alpha = 0.05, 
-                    const std::string alternative = "two.sided") {
+Rcpp::List farmTest(const arma::mat& X, const arma::vec& h0, int K = -1, const double alpha = 0.05, const std::string alternative = "two.sided") {
   int n = X.n_rows, p = X.n_cols;
   Rcpp::List listCov = huberCov(X, n, p);
   arma::vec mu = listCov["means"];
@@ -376,7 +475,7 @@ Rcpp::List farmTest(const arma::mat& X, const arma::vec& h0, int K = -1, const d
     double lambda = std::sqrt((long double)std::max(eigenVal(p - i), 0.0));
     B.col(i - 1) = lambda * eigenVec.col(p - i);
   }
-  arma::vec f = huberReg(B, arma::mean(X, 0).t(), p, K).rows(1, K);
+  arma::vec f = huberRegCoef(B, arma::mean(X, 0).t(), p, K);
   for (int j = 0; j < p; j++) {
     double temp = arma::norm(B.row(j), 2);
     if (sigma(j) > temp * temp) {
@@ -387,10 +486,11 @@ Rcpp::List farmTest(const arma::mat& X, const arma::vec& h0, int K = -1, const d
   sigma = arma::sqrt(sigma / n);
   arma::vec T = (mu - h0) / sigma;
   arma::vec Prob = getP(T, alternative);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma, Rcpp::Named("loadings") = B, Rcpp::Named("nfactors") = K, 
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant, 
-                            Rcpp::Named("eigens") = eigenVal, Rcpp::Named("ratio") = ratio);
+                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, Rcpp::Named("pAdjust") = pAdjust, 
+                            Rcpp::Named("significant") = significant, Rcpp::Named("eigens") = eigenVal, Rcpp::Named("ratio") = ratio);
 }
 
 // [[Rcpp::export]]
@@ -414,7 +514,7 @@ Rcpp::List farmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& 
     double lambda = std::sqrt((long double)std::max(eigenValX(p - i), 0.0));
     BX.col(i - 1) = lambda * eigenVec.col(p - i);
   }
-  arma::vec fX = huberReg(BX, arma::mean(X, 0).t(), p, KX).rows(1, KX);
+  arma::vec fX = huberRegCoef(BX, arma::mean(X, 0).t(), p, KX);
   listCov = huberCov(Y, nY, p);
   arma::vec muY = listCov["means"];
   sigmaHat = Rcpp::as<arma::mat>(listCov["cov"]);
@@ -429,7 +529,7 @@ Rcpp::List farmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& 
     double lambda = std::sqrt((long double)std::max(eigenValY(p - i), 0.0));
     BY.col(i - 1) = lambda * eigenVec.col(p - i);
   }
-  arma::vec fY = huberReg(BY, arma::mean(Y, 0).t(), p, KY).rows(1, KY);
+  arma::vec fY = huberRegCoef(BY, arma::mean(Y, 0).t(), p, KY);
   for (int j = 0; j < p; j++) {
     double temp = arma::norm(BX.row(j), 2);
     if (sigmaX(j) > temp * temp) {
@@ -446,12 +546,14 @@ Rcpp::List farmTestTwo(const arma::mat& X, const arma::mat& Y, const arma::vec& 
   sigmaX = arma::sqrt(sigmaX / nX);
   sigmaY = arma::sqrt(sigmaY / nY);
   arma::vec Prob = getP(T, alternative);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("stdDevX") = sigmaX, 
                             Rcpp::Named("stdDevY") = sigmaY, Rcpp::Named("loadingsX") = BX, Rcpp::Named("loadingsY") = BY,
                             Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY, Rcpp::Named("tStat") = T, 
-                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant, Rcpp::Named("eigensX") = eigenValX,
-                            Rcpp::Named("eigensY") = eigenValY, Rcpp::Named("ratioX") = ratioX, Rcpp::Named("ratioY") = ratioY);
+                            Rcpp::Named("pValues") = Prob, Rcpp::Named("pAdjust") = pAdjust, Rcpp::Named("significant") = significant, 
+                            Rcpp::Named("eigensX") = eigenValX, Rcpp::Named("eigensY") = eigenValY, Rcpp::Named("ratioX") = ratioX, 
+                            Rcpp::Named("ratioY") = ratioY);
 }
 
 // [[Rcpp::export]]
@@ -473,17 +575,19 @@ Rcpp::List farmTestFac(const arma::mat& X, const arma::mat& fac, const arma::vec
       sig -= temp;
     }
     temp = arma::as_scalar(beta.t() * Sigma * beta);
-    if (sig > temp * temp) {
-      sig -= temp * temp;
+    if (sig > temp) {
+      sig -= temp;
     }
     sigma(j) = sig;
   }
   sigma = arma::sqrt(sigma / n);
   arma::vec T = (mu - h0) / sigma;
   arma::vec Prob = getP(T, alternative);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("stdDev") = sigma, Rcpp::Named("loadings") = B, Rcpp::Named("nfactors") = K,
-                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+                            Rcpp::Named("tStat") = T, Rcpp::Named("pValues") = Prob, Rcpp::Named("pAdjust") = pAdjust, 
+                            Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
@@ -492,21 +596,22 @@ Rcpp::List farmTestFacBoot(const arma::mat& X, const arma::mat& fac, const arma:
   int n = X.n_rows, p = X.n_cols, K = fac.n_cols;
   arma::vec mu(p);
   for (int j = 0; j < p; j++) {
-    mu(j) = huberReg(fac, X.col(j), n, K)(0);
+    mu(j) = huberRegItcp(fac, X.col(j), n, K);
   }
   arma::mat boot(p, B);
   for (int i = 0; i < B; i++) {
-    arma::uvec idx = arma::find(arma::randu(n) > 0.5);
+    arma::uvec idx = arma::find(arma::randi(n, arma::distr_param(0, 1)) == 1);
     int subn = idx.size();
     arma::mat subX = X.rows(idx);
     for (int j = 0; j < p; j++) {
-      boot(j, i) = huberReg(fac.rows(idx), subX.col(j), subn, K)(0);
+      boot(j, i) = huberRegItcp(fac.rows(idx), subX.col(j), subn, K);
     }
   }
   arma::vec Prob = getPboot(mu, boot, h0, alternative, p, B);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("means") = mu, Rcpp::Named("nfactors") = K, Rcpp::Named("pValues") = Prob, 
-                            Rcpp::Named("significant") = significant);
+                            Rcpp::Named("pAdjust") = pAdjust, Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
@@ -529,8 +634,8 @@ Rcpp::List farmTestTwoFac(const arma::mat& X, const arma::mat& facX, const arma:
       sig -= temp;
     }
     temp = arma::as_scalar(beta.t() * SigmaX * beta);
-    if (sig > temp * temp) {
-      sig -= temp * temp;
+    if (sig > temp) {
+      sig -= temp;
     }
     sigmaX(j) = sig;
     theta = huberReg(facY, Y.col(j), nY, KY);
@@ -543,8 +648,8 @@ Rcpp::List farmTestTwoFac(const arma::mat& X, const arma::mat& facX, const arma:
       sig -= temp;
     }
     temp = arma::as_scalar(beta.t() * SigmaY * beta);
-    if (sig > temp * temp) {
-      sig -= temp * temp;
+    if (sig > temp) {
+      sig -= temp;
     }
     sigmaY(j) = sig;
   }
@@ -552,11 +657,12 @@ Rcpp::List farmTestTwoFac(const arma::mat& X, const arma::mat& facX, const arma:
   sigmaX = arma::sqrt(sigmaX / nX);
   sigmaY = arma::sqrt(sigmaY / nY);
   arma::vec Prob = getP(T, alternative);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("stdDevX") = sigmaX, 
                             Rcpp::Named("stdDevY") = sigmaY, Rcpp::Named("loadingsX") = BX, Rcpp::Named("loadingsY") = BY,
                             Rcpp::Named("nfactorsX") = KX, Rcpp::Named("nfactorsY") = KY, Rcpp::Named("tStat") = T, 
-                            Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+                            Rcpp::Named("pValues") = Prob, Rcpp::Named("pAdjust") = pAdjust, Rcpp::Named("significant") = significant);
 }
 
 // [[Rcpp::export]]
@@ -565,26 +671,28 @@ Rcpp::List farmTestTwoFacBoot(const arma::mat& X, const arma::mat& facX, const a
   int nX = X.n_rows, nY = Y.n_rows, p = X.n_cols, KX = facX.n_cols, KY = facY.n_cols;
   arma::vec muX(p), muY(p);
   for (int j = 0; j < p; j++) {
-    muX(j) = huberReg(facX, X.col(j), nX, KX)(0);
-    muY(j) = huberReg(facY, Y.col(j), nY, KY)(0);
+    muX(j) = huberRegItcp(facX, X.col(j), nX, KX);
+    muY(j) = huberRegItcp(facY, Y.col(j), nY, KY);
   }
   arma::mat bootX(p, B), bootY(p, B);
   for (int i = 0; i < B; i++) {
-    arma::uvec idx = arma::find(arma::randu(nX) > 0.5);
+    arma::uvec idx = arma::find(arma::randi(nX, arma::distr_param(0, 1)) == 1);
     int subn = idx.size();
     arma::mat subX = X.rows(idx);
     for (int j = 0; j < p; j++) {
-      bootX(j, i) = huberReg(facX.rows(idx), subX.col(j), subn, KX)(0);
+      bootX(j, i) = huberRegItcp(facX.rows(idx), subX.col(j), subn, KX);
     }
-    idx = arma::find(arma::randu(nY) > 0.5);
+    idx = arma::find(arma::randi(nY, arma::distr_param(0, 1)) == 1);
     subn = idx.size();
     arma::mat subY = Y.rows(idx);
     for (int j = 0; j < p; j++) {
-      bootY(j, i) = huberReg(facY.rows(idx), subY.col(j), subn, KY)(0);
+      bootY(j, i) = huberRegItcp(facY.rows(idx), subY.col(j), subn, KY);
     }
   }
   arma::vec Prob = getPboot(muX - muY, bootX - bootY, h0, alternative, p, B);
-  arma::uvec significant = getRej(Prob, alpha, p);
+  arma::vec pAdjust = adjust(Prob, alpha, p);
+  arma::uvec significant = pAdjust <= alpha;
   return Rcpp::List::create(Rcpp::Named("meansX") = muX, Rcpp::Named("meansY") = muY, Rcpp::Named("nfactorsX") = KX, 
-                            Rcpp::Named("nfactorsY") = KY, Rcpp::Named("pValues") = Prob, Rcpp::Named("significant") = significant);
+                            Rcpp::Named("nfactorsY") = KY, Rcpp::Named("pValues") = Prob, Rcpp::Named("pAdjust") = pAdjust, 
+                            Rcpp::Named("significant") = significant);
 }

@@ -9,56 +9,29 @@ To explicitly caputre the strong dependency among features, we assume that the d
 
 FarmTest implements a series of adaptive Huber methods combined with fast data-driven tuning schemes to estimate model parameters and construct test statistics that are robust against heavy-tailed and/or asymetric error distributions. Extensions to two-sample simultaneous mean comparison are also included. As by-products, this library also contains functions that compute adaptive Huber mean and covariance matrix estimators that are of independent interest.
 
-## Main updates 
+## Main updates after version 2.0.0
 
-The FarmTest method involves multiple tuning parameters for fitting the factor models. In the case of latent factors, the algorithm first computes a robust covariance matrix estimator, and then use the eigenvalue ratio method ([Ahn and Horenstein, 2013](https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA8968)) along with SVD to estimate the number of factors and loading vectors. It is therefore computationally expenstive to select all the tuning parameters via cross-validation. Instead, the current version makes use of the fast data-driven tuning scheme proposed by [Ke et al., 2019](https://arxiv.org/abs/1811.01520), which significantly reduces the computational cost.
+The FarmTest method involves multiple tuning parameters for fitting the factor models. In the case of latent factors, the algorithm first computes a robust covariance matrix estimator, and then use the eigenvalue ratio method ([Ahn and Horenstein, 2013](https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA8968)) along with SVD to estimate the number of factors and loading vectors. It is therefore computationally expenstive to select all the tuning parameters via cross-validation. Instead, the current version makes use of the fast data-driven tuning scheme proposed by [Ke et al., 2019](https://projecteuclid.org/euclid.ss/1570780979), which significantly reduces the computational cost.
 
 ## Installation
 
-`FarmTest` can be installed into `R` environment with the following methods:
-
-1. (Recommended) `FarmTest` is available on [CRAN](https://CRAN.R-project.org/package=FarmTest), so simply use the command:
+`FarmTest` is available on [CRAN](https://CRAN.R-project.org/package=FarmTest), and it can be installed into `R` environment using the command:
 
 ```r
 install.packages("FarmTest")
 ```
 
-2. `FarmTest` can also be installed from the GitHub repository:
-
-```r
-install.packages("devtools")
-library(devtools)
-devtools::install_github("XiaoouPan/FarmTest")
-library(FarmTest)
-```
-
-## Common error messages
-
-First of all, to avoid most unexpected error messages, it is **strongly** recommended to update `R` to version >= 3.6.1.
-
-Besides, since the library `FarmTest` is coded in `Rcpp` and `RcppArmadillo`, when you first install it, the following two build tools are required:
-
-1. Rtools for Windows OS or XCode Command Line Tools for Mac OS. See [this link](https://support.rstudio.com/hc/en-us/articles/200486498-Package-Development-Prerequisites) for details.
-
-2. gfortran binaries: see [here](https://gcc.gnu.org/wiki/GFortranBinaries#MacOS) for instructions.
-
-`FarmTest` should be working well after these steps. Some common error messages along with their solutions are collected below, and we'll keep updating them based on users' feedback:
-
-* Error: "...could not find build tools necessary to build FarmTest": Please see step 1 above.
-
-* Error: "library not found for -lgfortran/..": Please see step 2 above.
-    
-* Error: "cannot remove prior installation of package 'Rcpp'": This issue happens occasionally when you have installed an old version of the package `Rcpp` before. Updating `Rcpp` with command `install.packages("Rcpp")` will solve the problem.
-
 ## Functions
 
-There are five main functions in this library:
+There are 7 functions in this library:
 
 * `farm.test`: Factor-adjusted robust multiple testing.
 * `print.farm.test`: Print function for `farm.test`.
-* `farm.mean`: Tuning-free Huber mean estimation.
-* `farm.cov`: Tuning-free Huber-type covariance estimation.
-* `farm.fdr`: FDR control given a sequence of p-values.
+* `summary.farm.test`: Summary function for `farm.test`.
+* `plot.farm.test`: Plot function for `farm.test`.
+* `huber.mean`: Tuning-free Huber mean estimation.
+* `huber.cov`: Tuning-free Huber-type covariance estimation.
+* `huber.reg`: Tuning-free Huber regression.
 
 ## Getting help
 
@@ -90,17 +63,19 @@ In this case, the factors are unobservable and thus need to be recovered from da
 output = farm.test(X)
 ```
 
-The library includes a `print.farm.test` function, which summarizes the results of `farm.test`: 
+The library includes `summary.farm.test`, `print.farm.test` and `plot.farm.test` functions, which summarize, print and visualize the results of `farm.test`: 
 
 ```r
-output
+summary(output)
+print(output)
+plot(output)
 ```
 
 Based on 100 simulations, we report below the average values of the true positive rate (TPR), false positive rate (FPR) and false discover rate (FDR).
 
 | TPR | FPR | FDR |
 | :---: | :---: | :---: | 
-| 1.000 | 0.002 | 0.031 |
+| 1.000 | 0.002 | 0.026 |
 
 In addition, we illustrate the use of FarmTest under different circumstances. For one-sided alternatives, modify the `alternative` argument to be `less` or `greater`:
 
@@ -138,19 +113,19 @@ Y = rep(1, n) %*% t(muY) + fY %*% t(BY) + epsilonY
 output = farm.test(X, Y = Y)
 ```
  
-Robust mean and covariance matrix estimation is not only an important step in the FarmTest, but also of independent interest in many other problems. We write separate functions `farm.mean` and `farm.cov` for this purpose.
+As by-products, robust mean and covariance matrix estimation is not only an important step in the FarmTest, but also of independent interest in many other problems. We write separate functions `huber.mean` and `huber.cov` for this purpose.
 
 ```r
 library(FarmTest)
 set.seed(1)
 n = 1000
 X = rlnorm(n, 0, 1.5)
-huberMean = farm.mean(X)
+huberMean = huber.mean(X)
 
 n = 100
 d = 50
 X = matrix(rt(n * d, df = 3), n, d)
-huberCov = farm.cov(X)
+huberCov = huber.cov(X)
 ```
 
 ## Remark 
@@ -160,6 +135,10 @@ This library is built upon an earlier version written by Bose, K., Ke, Y. and Zh
 ## License
 
 GPL-3.0
+
+##  System requirements 
+
+C++11
 
 ## Author(s)
 
@@ -171,26 +150,26 @@ Xiaoou Pan <xip024@ucsd.edu>
 
 ## References
 
-Ahn, S. C. and Horenstein, A. R. (2013). Eigenvalue ratio test for the number of factors. *Econometrica* **81**(3) 1203–1227. [Paper](https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA8968)
+Ahn, S. C. and Horenstein, A. R. (2013). Eigenvalue ratio test for the number of factors. *Econometrica* **81** 1203–1227. [Paper](https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA8968)
 
 Benjamini, Y. and Hochberg, Y. (1995). Controlling the false discovery rate: A practical and powerful approach to multiple testing. *J. R. Stat. Soc. Ser. B. Stat. Methodol.* **57** 289–300. [Paper](https://www.jstor.org/stable/2346101?seq=1#metadata_info_tab_contents)
 
 Bose, K., Fan, J., Ke, Y., Pan, X. and Zhou, W.-X. (2019). FarmTest: An R package for factor-adjusted robust multiple testing. [Preprint](https://www.math.ucsd.edu/~xip024/Papers/FarmTest.pdf)
 
-Eddelbuettel, D. and Francois, R. (2011). Rcpp: Seamless R and C++ integration. *J. Stat. Softw.* **40**(8) 1-18. [Paper](http://dirk.eddelbuettel.com/code/rcpp/Rcpp-introduction.pdf)
+Eddelbuettel, D. and Francois, R. (2011). Rcpp: Seamless R and C++ integration. *J. Stat. Softw.* **40** 1-18. [Paper](http://dirk.eddelbuettel.com/code/rcpp/Rcpp-introduction.pdf)
 
 Eddelbuettel, D. and Sanderson, C. (2014). RcppArmadillo: Accelerating R with high-performance C++ linear algebra. *Comput. Statist. Data Anal.* **71** 1054-1063. [Paper](http://dirk.eddelbuettel.com/papers/RcppArmadillo.pdf)
 
-Fan, J., Ke, Y., Sun, Q. and Zhou, W.-X. (2019). FarmTest: Factor-adjusted robust multiple testing with approximate false discovery control. *J. Amer. Statist. Assoc.*, to appear. [Paper](https://www.tandfonline.com/doi/full/10.1080/01621459.2018.1527700) 
+Fan, J., Ke, Y., Sun, Q. and Zhou, W.-X. (2019). FarmTest: Factor-adjusted robust multiple testing with approximate false discovery control. *J. Amer. Statist. Assoc.* **114** 1880-1893. [Paper](https://www.tandfonline.com/doi/full/10.1080/01621459.2018.1527700) 
 
 Huber, P. J. (1964). Robust estimation of a location parameter. *Ann. Math. Statist.* **35** 73-101. [Paper](https://projecteuclid.org/euclid.aoms/1177703732)
 
-Ke, Y., Minsker, S., Ren, Z., Sun, Q. and Zhou, W.-X. (2019). User-friendly covariance estimation for heavy-tailed distributions. *Statis. Sci.*, to appear. [Paper](https://arxiv.org/abs/1811.01520)
+Ke, Y., Minsker, S., Ren, Z., Sun, Q. and Zhou, W.-X. (2019). User-friendly covariance estimation for heavy-tailed distributions. *Statis. Sci.* **34** 454-471. [Paper](https://projecteuclid.org/euclid.ss/1570780979)
 
 Sanderson, C. and Curtin, R. (2016). Armadillo: A template-based C++ library for linear algebra. *J. Open Source Softw.* **1** 26. [Paper](http://conradsanderson.id.au/pdfs/sanderson_armadillo_joss_2016.pdf)
 
 Storey, J. D. (2002). A direct approach to false discovery rates. *J. R. Stat. Soc. Ser. B. Stat. Methodol.* **64** 479–498. [Paper](https://www.jstor.org/stable/3088784?seq=1#metadata_info_tab_contents)
 
-Sun, Q., Zhou, W.-X. and Fan, J. (2019). Adaptive Huber regression. *J. Amer. Statist. Assoc.*, to appear. [Paper](https://www.tandfonline.com/doi/abs/10.1080/01621459.2018.1543124)
+Sun, Q., Zhou, W.-X. and Fan, J. (2020). Adaptive Huber regression. *J. Amer. Statist. Assoc.* **115** 254-265. [Paper](https://www.tandfonline.com/doi/abs/10.1080/01621459.2018.1543124)
 
 Zhou, W.-X., Bose, K., Fan, J. and Liu, H. (2018). A new perspective on robust M-estimation: Finite sample theory and applications to dependence-adjusted multiple testing. *Ann. Statist.* **46** 1904-1931. [Paper](https://projecteuclid.org/euclid.aos/1534492823)

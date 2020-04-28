@@ -37,29 +37,30 @@ farm.test(
 
 \item{alpha}{An \strong{optional} level for controlling the false discovery rate. The value of \code{alpha} must be between 0 and 1. The default value is 0.05.}
 
-\item{p.method}{An \strong{optional} character string specifying the method to calculate p-values when \code{fX} is known or when \code{KX = 0}, possible options are multiplier bootstrap or normal approximation. It must be one of "bootstrap" (default) or "normal".}
+\item{p.method}{An \strong{optional} character string specifying the method to calculate p-values when \code{fX} is known or when \code{KX = 0}, possible options are multiplier bootstrap or normal approximation. It must be one of "bootstrap"(default) or "normal".}
 
 \item{nBoot}{An \strong{optional} positive integer specifying the size of bootstrap sample, only available when \code{p.method = "bootstrap"}. The dafault value is 500.}
 }
 \value{
 An object with S3 class \code{farm.test} containing the following items will be returned:
-\itemize{
-\item \code{means} Estimated means, a vector with length \eqn{p}.
-\item \code{stdDev} Estimated standard deviations, a vector with length \eqn{p}. It's not available for bootstrap method.
-\item \code{loadings} Estimated factor loadings, a matrix with dimension \eqn{p} by \eqn{K}, where \eqn{K} is the number of factors.
-\item \code{eigenVal} Eigenvalues of estimated covariance matrix, a vector with length \eqn{p}. It's only available when factors \code{fX} and \code{fY} are not given.
-\item \code{eigenRatio} Ratios of \code{eigenVal} to estimate \code{nFactors}, a vector with length \eqn{min(n, p) / 2}. It's only available when number of factors \code{KX} and \code{KY} are not given.
-\item \code{nFactors} Estimated or input number of factors, a positive integer.
-\item \code{tStat} Values of test statistics, a vector with length \eqn{p}. It's not available for bootstrap method.
-\item \code{pValues} P-values of tests, a vector with length \eqn{p}.
-\item \code{significant} Boolean values indicating whether each test is significant, with 1 for significant and 0 for non-significant, a vector with length \eqn{p}.
-\item \code{reject} Indices of tests that are rejected. It will show "no hypotheses rejected" if none of the tests are rejected.
-\item \code{type} Indicator of whether factor is known or unknown.
-\item \code{n} Sample size.
-\item \code{p} Data dimension.
-\item \code{h0} Null hypothesis, a vector with length \eqn{p}.
-\item \code{alpha} \eqn{\alpha} value.
-\item \code{alternative} Althernative hypothesis.
+\describe{
+\item{\code{means}}{Estimated means, a vector with length \eqn{p}.}
+\item{\code{stdDev}}{Estimated standard deviations, a vector with length \eqn{p}. It's not available for bootstrap method.}
+\item{\code{loadings}}{Estimated factor loadings, a matrix with dimension \eqn{p} by \eqn{K}, where \eqn{K} is the number of factors.}
+\item{\code{eigenVal}}{Eigenvalues of estimated covariance matrix, a vector with length \eqn{p}. It's only available when factors \code{fX} and \code{fY} are not given.}
+\item{\code{eigenRatio}}{Ratios of \code{eigenVal} to estimate \code{nFactors}, a vector with length \eqn{min(n, p) / 2}. It's only available when number of factors \code{KX} and \code{KY} are not given.}
+\item{\code{nFactors}}{Estimated or input number of factors, a positive integer.}
+\item{\code{tStat}}{Values of test statistics, a vector with length \eqn{p}. It's not available for bootstrap method.}
+\item{\code{pValues}}{P-values of tests, a vector with length \eqn{p}.}
+\item{\code{pAdjust}}{Adjusted p-values of tests, a vector with length \eqn{p}.}
+\item{\code{significant}}{Boolean values indicating whether each test is significant, with 1 for significant and 0 for non-significant, a vector with length \eqn{p}.}
+\item{\code{reject}}{Indices of tests that are rejected. It will show "no hypotheses rejected" if none of the tests are rejected.}
+\item{\code{type}}{Indicator of whether factor is known or unknown.}
+\item{\code{n}}{Sample size.}
+\item{\code{p}}{Data dimension.}
+\item{\code{h0}}{Null hypothesis, a vector with length \eqn{p}.}
+\item{\code{alpha}}{\eqn{\alpha} value.}
+\item{\code{alternative}}{Althernative hypothesis.}
 }
 }
 \description{
@@ -78,7 +79,6 @@ p = 50
 K = 3
 muX = rep(0, p)
 muX[1:5] = 2
-set.seed(2019)
 epsilonX = matrix(rnorm(p * n, 0, 1), nrow = n)
 BX = matrix(runif(p * K, -2, 2), nrow = p)
 fX = matrix(rnorm(K * n, 0, 1), nrow = n)
@@ -104,18 +104,16 @@ Ahn, S. C. and Horenstein, A. R. (2013). Eigenvalue ratio test for the number of
 
 Benjamini, Y. and Hochberg, Y. (1995). Controlling the false discovery rate: A practical and powerful approach to multiple testing. J. R. Stat. Soc. Ser. B. Stat. Methodol., 57 289–300.
 
-Fan, J., Ke, Y., Sun, Q. and Zhou, W-X. (2019). FarmTest: Factor-adjusted robust multiple testing with approximate false discovery control. J. Amer. Statist. Assoc., to appear.
+Fan, J., Ke, Y., Sun, Q. and Zhou, W-X. (2019). FarmTest: Factor-adjusted robust multiple testing with approximate false discovery control. J. Amer. Statist. Assoc., 114, 1880-1893.
 
 Huber, P. J. (1964). Robust estimation of a location parameter. Ann. Math. Statist., 35, 73–101.
 
 Storey, J. D. (2002). A direct approach to false discovery rates. J. R. Stat. Soc. Ser. B. Stat. Methodol., 64, 479–498.
 
-Sun, Q., Zhou, W.-X. and Fan, J. (2019). Adaptive Huber regression. J. Amer. Statist. Assoc., to appear.
+Sun, Q., Zhou, W.-X. and Fan, J. (2020). Adaptive Huber regression. J. Amer. Statist. Assoc., 115, 254-265.
 
 Zhou, W-X., Bose, K., Fan, J. and Liu, H. (2018). A new perspective on robust M-estimation: Finite sample theory and applications to dependence-adjusted multiple testing. Ann. Statist., 46 1904-1931.
 }
 \seealso{
-\code{\link{print.farm.test}}
-
-\code{\link{farm.fdr}}
+\code{\link{print.farm.test}}, \code{\link{summary.farm.test}} and \code{\link{plot.farm.test}}.
 }

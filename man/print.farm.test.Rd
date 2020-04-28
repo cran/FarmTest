@@ -2,7 +2,7 @@
 % Please edit documentation in R/FarmTest.R
 \name{print.farm.test}
 \alias{print.farm.test}
-\title{Summary and print function of FarmTest}
+\title{Print function of FarmTest}
 \usage{
 \method{print}{farm.test}(x, ...)
 }
@@ -15,7 +15,7 @@
 No variable will be returned, but a brief summary of FarmTest will be displayed.
 }
 \description{
-This is the print function of S3 objects with class "\code{farm.test}". It summarizes and prints the outputs of \code{farm.test} function.
+This is the print function of S3 objects with class "\code{farm.test}".
 }
 \examples{
 n = 50
@@ -23,14 +23,13 @@ p = 100
 K = 3
 muX = rep(0, p)
 muX[1:5] = 2
-set.seed(2019)
 epsilonX = matrix(rnorm(p * n, 0, 1), nrow = n)
 BX = matrix(runif(p * K, -2, 2), nrow = p)
 fX = matrix(rnorm(K * n, 0, 1), nrow = n)
 X = rep(1, n) \%*\% t(muX) + fX \%*\% t(BX) + epsilonX
 output = farm.test(X)
-output
+print(output)
 }
 \seealso{
-\code{\link{farm.test}}
+\code{\link{farm.test}}, \code{\link{summary.farm.test}} and \code{\link{plot.farm.test}}.
 }
